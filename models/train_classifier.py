@@ -128,27 +128,15 @@ def build_model():
         ('clf', MultiOutputClassifier(RandomForestClassifier()))
     ])
 
-    return pipeline
+    # Grid Search for tuning parameters
+    parameters = {
+    'clf__estimator__alpha' : [0.1, 0.9],
+    'clf__estimator__learning_rate' : [0.05, 1]
+    }
+    cv = GridSearchCV(pipeline, param_grid = parameters)
 
+    return cv
 
-def make_binary(Y_pred):
-    '''
-    INPUT - Y_pred np.ndarray containing countinous predictions
-
-    OUPUT - Y_pred np.ndarray containing binary predictions
-
-    Changes countinuous predictions in the interval [0,1] to 1 if greater than .5
-    or else to 0
-    '''
-
-    for i  in range(Y_pred.shape[0]):
-        for j in range(Y_pred.shape[1]):
-            if Y_pred[i,j] > 0.5:
-                Y_pred[i,j] = int(1)
-            else:
-                Y_pred[i,j] = int(0)
-    
-    return Y_pred
 
 
 def evaluate_model(model, X_test, Y_test, category_names):
@@ -160,10 +148,6 @@ def evaluate_model(model, X_test, Y_test, category_names):
 
     # predicting values
     Y_pred = model.predict(X_test)
-
-    # Turning countinuous predictions to binary predictions
-    Y_pred = make_binary(Y_pred)
-
 
     yp = pd.DataFrame(Y_pred)
 
