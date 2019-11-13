@@ -5,8 +5,9 @@ import numpy as np
 import sklearn
 import nltk
 
+from sklearn.model_selection import train_test_split
 from sklearn.multioutput import MultiOutputClassifier
-from sklearn.pipeline import Pipeline
+from sklearn.pipeline import Pipeline, FeatureUnion
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingRegressor
 from sklearn.multiclass import OneVsRestClassifier
 from sklearn.metrics import classification_report
@@ -46,7 +47,9 @@ def load_data(database_filepath):
     X.reset_index(drop = True, inplace = True)
     X = X.values.flatten()
 
-    return X, Y
+    category_names = [Y.columns]
+
+    return X, Y, category_names
 
 
 def tokenize(text):
@@ -95,11 +98,42 @@ class MessageTypeExtractor(BaseEstimator, TransformerMixin):
 
 
 def build_model():
-    pass
+    '''
+    INPUT - None
+
+    OUTPUT - pipeline object
+
+    pipeline object does: combining features from text messages using FeatureUnion
+    and using the output from that to train a multi-output classifier
+    '''
+
+    pipeline = Pipeline([
+        ('features', FeatureUnion([
+            ('message_pipeline', Pipeline([
+                ('vectorizer', CountVectorizer(tokenizer = tokenize)),
+                ('tfidf', TfidfTransformer())
+            ])),
+
+            ('num_pipeline', MessageTypeExtractor())
+        ])),
+
+        ('clf', MultiOutputClassifier(RandomForestClassifier()))
+    ])
+
+    return pipeline
+
 
 
 def evaluate_model(model, X_test, Y_test, category_names):
-    pass
+    '''
+    INPUT - ML pipeline object, test data (X_test), test labels (Y_test), categ names
+    
+    OUTPUT - Prints test set evaluation results
+    '''
+
+    Y_pred = model.predict(X_test)
+
+
 
 
 def save_model(model, model_filepath):
@@ -111,7 +145,8 @@ def main():
         database_filepath, model_filepath = sys.argv[1:]
         print('Loading data...\n    DATABASE: {}'.format(database_filepath))
         X, Y, category_names = load_data(database_filepath)
-        X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2)
+        X_train, X_test, Y_train, Y_test = train_test_split(
+            X, Y, test_size=0.2, random_state = 1)
         
         print('Building model...')
         model = build_model()
