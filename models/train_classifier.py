@@ -3,7 +3,6 @@ from sqlalchemy import create_engine
 import pandas as pd
 import numpy as np
 import sklearn
-import nltk
 
 from sklearn.model_selection import train_test_split
 from sklearn.multioutput import MultiOutputClassifier
@@ -17,13 +16,16 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 
 
-import re
+import re, pickle
 
+import nltk
 nltk.download('punkt')
 nltk.download('wordnet')
-
 from nltk import word_tokenize
 from nltk.stem.wordnet import WordNetLemmatizer
+
+
+
 
 
 
@@ -37,7 +39,7 @@ def load_data(database_filepath):
     '''
 
     # setting up the DB engine and reading in the data
-    engine = create_engine('sqlite:///{}.db'.format(database_filepath))
+    engine = create_engine('sqlite:///{}'.format(database_filepath))
     conn = engine.connect()
     df = pd.read_sql_table(table_name = 'Message', con = conn)
 
@@ -94,7 +96,7 @@ class MessageTypeExtractor(BaseEstimator, TransformerMixin):
         OUPUT - Transformed data in form of binary features based on contains_num()
         '''
         Xnum = pd.Series(X).apply(self.contains_num)
-        return Xnum
+        return pd.DataFrame(Xnum.values.flatten())
 
 
 def build_model():
@@ -106,6 +108,12 @@ def build_model():
     pipeline object does: combining features from text messages using FeatureUnion
     and using the output from that to train a multi-output classifier
     '''
+
+    pipeline = Pipeline([
+    ('vect', CountVectorizer(tokenizer = tokenize)),
+    ('transform', TfidfTransformer()),
+    ('clf', MultiOutputClassifier(GradientBoostingRegressor()))
+    ])
 
     pipeline = Pipeline([
         ('features', FeatureUnion([
@@ -123,6 +131,25 @@ def build_model():
     return pipeline
 
 
+def make_binary(Y_pred):
+    '''
+    INPUT - Y_pred np.ndarray containing countinous predictions
+
+    OUPUT - Y_pred np.ndarray containing binary predictions
+
+    Changes countinuous predictions in the interval [0,1] to 1 if greater than .5
+    or else to 0
+    '''
+
+    for i  in range(Y_pred.shape[0]):
+        for j in range(Y_pred.shape[1]):
+            if Y_pred[i,j] > 0.5:
+                Y_pred[i,j] = int(1)
+            else:
+                Y_pred[i,j] = int(0)
+    
+    return Y_pred
+
 
 def evaluate_model(model, X_test, Y_test, category_names):
     '''
@@ -131,13 +158,37 @@ def evaluate_model(model, X_test, Y_test, category_names):
     OUTPUT - Prints test set evaluation results
     '''
 
+    # predicting values
     Y_pred = model.predict(X_test)
 
+    # Turning countinuous predictions to binary predictions
+    Y_pred = make_binary(Y_pred)
+
+
+    yp = pd.DataFrame(Y_pred)
+
+    for i in range(len(category_names)):
+        print('Accuracy for each of the categories:')
+        print(category_names[i], ":", (Y_test.values[i,:] == yp.values[i,:]).mean())
 
 
 
 def save_model(model, model_filepath):
-    pass
+    '''
+    INPUT - ML pipeline/model, pickled file path
+
+    OUTPUT - True if successfully pickled, False otherwise
+
+    Pickles the model in a separate file
+    '''
+
+    try:
+        pickle.dump(model, model_filepath)
+        print('Successfully pickled!')
+        return True
+    except:
+        print('Pickling failed!')
+        return False
 
 
 def main():
