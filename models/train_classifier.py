@@ -43,11 +43,16 @@ def load_data(database_filepath):
     conn = engine.connect()
     df = pd.read_sql_table(table_name = 'Message', con = conn)
 
+    # Removing labels with value = 2 which are inconsistent w/ binary categorization
+    # This is for 'related' column and only constitutes 0.7% of the data
+    twos = df[df['related'] == 2]
+    df = df.drop(index = twos.index)
+
     # extracting X and Y, flattening X into a 1D array
     X = df[['message']]
-    Y = df.iloc[:,5:41]
     X.reset_index(drop = True, inplace = True)
     X = X.values.flatten()
+    Y = df.iloc[:,5:41]
 
     category_names = [Y.columns]
 
@@ -109,11 +114,11 @@ def build_model():
     and using the output from that to train a multi-output classifier
     '''
 
-    pipeline = Pipeline([
-    ('vect', CountVectorizer(tokenizer = tokenize)),
-    ('transform', TfidfTransformer()),
-    ('clf', MultiOutputClassifier(GradientBoostingRegressor()))
-    ])
+    # pipeline = Pipeline([
+    # ('vect', CountVectorizer(tokenizer = tokenize)),
+    # ('transform', TfidfTransformer()),
+    # ('clf', MultiOutputClassifier(GradientBoostingRegressor()))
+    # ])
 
     pipeline = Pipeline([
         ('features', FeatureUnion([
@@ -130,8 +135,8 @@ def build_model():
 
     # Grid Search for tuning parameters
     parameters = {
-    'clf__estimator__alpha' : [0.1, 0.9],
-    'clf__estimator__learning_rate' : [0.05, 1]
+    'clf__estimator__criterion' : ['gini', 'entropy'],
+    'clf__estimator__min_samples_split' : [2, 4]
     }
     cv = GridSearchCV(pipeline, param_grid = parameters)
 
@@ -167,7 +172,7 @@ def save_model(model, model_filepath):
     '''
 
     try:
-        pickle.dump(model, model_filepath)
+        pickle.dumps(model, model_filepath)
         print('Successfully pickled!')
         return True
     except:
