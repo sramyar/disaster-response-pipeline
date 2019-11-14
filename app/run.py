@@ -1,6 +1,7 @@
 import json
 import plotly
 import pandas as pd
+import joblib
 
 from nltk.stem import WordNetLemmatizer
 from nltk.tokenize import word_tokenize
@@ -8,9 +9,55 @@ from nltk.tokenize import word_tokenize
 from flask import Flask
 from flask import render_template, request, jsonify
 from plotly.graph_objs import Bar
-from sklearn.externals import joblib
+#from sklearn.externals import joblib
 from sqlalchemy import create_engine
 
+from sklearn.base import BaseEstimator, TransformerMixin
+
+import sys
+from sqlalchemy import create_engine
+import pandas as pd
+import numpy as np
+import sklearn
+
+
+
+
+import re, pickle
+
+
+
+class MessageTypeExtractor(BaseEstimator, TransformerMixin):
+    '''
+    Estimator/Transformer class for identifying text that contains numerical values
+    and transforming them into binary features
+    '''
+
+    def contains_num(self, text):
+        '''
+        INPUT - text of the message
+
+        OUPUT - 1 if message contains numerical values or else 0
+        '''
+        if len(re.findall('[0-9]', text)) != 0:
+            return 1
+        else:
+            return 0
+    
+    def fit(self, s, y=None):
+        '''
+        Signature for the required fit(*args) method inherited from BaseEstimator
+        '''
+        return self
+    
+    def transform(self, X):
+        '''
+        INPUT - Unlabled data (X) 
+
+        OUPUT - Transformed data in form of binary features based on contains_num()
+        '''
+        Xnum = pd.Series(X).apply(self.contains_num)
+        return pd.DataFrame(Xnum.values.flatten())
 
 app = Flask(__name__)
 
@@ -26,11 +73,11 @@ def tokenize(text):
     return clean_tokens
 
 # load data
-engine = create_engine('sqlite:///../data/YourDatabaseName.db')
-df = pd.read_sql_table('YourTableName', engine)
+engine = create_engine('sqlite:///../data/DisasterResponse.db')
+df = pd.read_sql_table('Message', engine)
 
 # load model
-model = joblib.load("../models/your_model_name.pkl")
+model = joblib.load("../models/classifier.pkl")
 
 
 # index webpage displays cool visuals and receives user input text for model
@@ -43,6 +90,9 @@ def index():
     genre_counts = df.groupby('genre').count()['message']
     genre_names = list(genre_counts.index)
     
+    categories = list(df.columns[5:41])
+    cat_freq = list(df.iloc[:,5:41].sum())
+
     # create visuals
     # TODO: Below is an example - modify to create your own visuals
     graphs = [
@@ -51,6 +101,25 @@ def index():
                 Bar(
                     x=genre_names,
                     y=genre_counts
+                )
+            ],
+
+            'layout': {
+                'title': 'Distribution of Message Genres',
+                'yaxis': {
+                    'title': "Count"
+                },
+                'xaxis': {
+                    'title': "Genre"
+                }
+            }
+        },
+
+        {
+            'data': [
+                Bar(
+                    x=categories,
+                    y=cat_freq
                 )
             ],
 
