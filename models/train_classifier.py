@@ -54,7 +54,7 @@ def load_data(database_filepath):
     X = X.values.flatten()
     Y = df.iloc[:,5:41]
 
-    category_names = [Y.columns]
+    category_names = [c for c in Y.columns]
 
     return X, Y, category_names
 
@@ -154,12 +154,9 @@ def evaluate_model(model, X_test, Y_test, category_names):
     # predicting values
     Y_pred = model.predict(X_test)
 
-    yp = pd.DataFrame(Y_pred)
-
-    for i in range(len(category_names)):
-        print('Accuracy for each of the categories:')
-        print(category_names[i], ":", (Y_test.values[i,:] == yp.values[i,:]).mean())
-
+    report = classification_report(Y_test.values, Y_pred,
+                                    target_names = category_names)
+    print(report)
 
 
 def save_model(model, model_filepath):
@@ -170,15 +167,12 @@ def save_model(model, model_filepath):
 
     Pickles the model in a separate file
     '''
-
     try:
-        pickle.dumps(model, model_filepath)
+        with open(model_filepath, 'wb') as pkl:
+            pickle.dump(model, pkl)
         print('Successfully pickled!')
-        return True
     except:
-        print('Pickling failed!')
-        return False
-
+        print('Pickling failed!')   
 
 def main():
     if len(sys.argv) == 3:
